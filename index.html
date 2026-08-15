@@ -3,395 +3,569 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Özel Görüntülü Sohbet & Sinema Odası</title>
+    <title>Togetherly - Özel Sinema Odası</title>
     <!-- PeerJS Kütüphanesi -->
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <!-- İkonlar için FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        * { box-sizing: border-box; }
+        /* --- Temel ve Renk Ayarları --- */
+        :root {
+            --bg-color: #141414; /* Netflix benzeri koyu arka plan */
+            --panel-bg: #1f1f1f;
+            --text-color: #e0e0e0;
+            --accent-color: #e50914; /* Netflix Kırmızısı */
+            --success-color: #2ed573;
+            --primary-btn: #007bff;
+            --primary-hover: #0056b3;
+            --border-radius: 12px;
+            --transition: all 0.3s ease;
+        }
+
+        * { box-sizing: border-box; outline: none; }
         
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            text-align: center; 
-            background: #121212; 
-            color: #e0e0e0; 
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            background-color: var(--bg-color); 
+            color: var(--text-color); 
             margin: 0; 
-            padding: 15px; 
-            padding-bottom: 40px;
-        }
-        
-        h2 { margin-top: 10px; font-size: 1.8rem; color: #ffffff; }
-
-        .controls { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center;
-            gap: 12px;
-            background: #1e1e1e;
-            padding: 20px;
-            border-radius: 12px;
-            max-width: 450px;
-            margin: 0 auto 20px auto;
-        }
-
-        .buttons-row {
+            padding: 0; 
             display: flex;
-            flex-wrap: wrap;
-            gap: 10px;
-            width: 100%;
-            justify-content: center;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
         }
 
-        input, button { 
-            padding: 12px 15px; 
-            font-size: 15px; 
-            border-radius: 8px; 
-            border: none; 
-            transition: all 0.3s ease;
+        /* --- Üst Başlık --- */
+        header {
+            padding: 15px 25px;
+            background-color: var(--panel-bg);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #333;
+            z-index: 10;
         }
 
-        input[type="text"] { 
-            width: 100%; 
-            background: #2a2a2a; 
-            color: white; 
-            border: 1px solid #444; 
-        }
-        
-        input[type="text"]:focus { outline: none; border-color: #007bff; }
-        
-        button { 
-            background: #007bff; 
-            color: white; 
-            cursor: pointer; 
-            font-weight: 600;
+        h1 { margin: 0; font-size: 1.5rem; color: #fff; font-weight: 700; letter-spacing: -1px; }
+        h1 span { color: var(--accent-color); }
+
+        .status-group { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; }
+        #connection-status-dot { width: 10px; height: 10px; background-color: #555; border-radius: 50%; display: inline-block; }
+        #connection-status-dot.connected { background-color: var(--success-color); box-shadow: 0 0 10px var(--success-color); }
+        #my-id-display { font-weight: bold; color: #fff; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 4px; font-family: monospace;}
+
+        /* --- Ana İçerik Alanı --- */
+        main {
             flex-grow: 1;
+            display: flex;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+            position: relative;
         }
-        
-        button:hover { background: #0056b3; transform: translateY(-2px); }
-        button.action-btn { background: #ff4757; }
-        button.action-btn:hover { background: #ff6b81; }
-        
-        #my-id { font-weight: bold; color: #2ed573; font-size: 1.3em; word-break: break-all; letter-spacing: 1px;}
-        
-        /* Video Alanı */
-        .video-container { 
-            display: flex; 
-            flex-wrap: wrap; 
-            justify-content: center; 
-            gap: 20px; 
+
+        /* --- Video Alanı --- */
+        .video-grid {
+            flex-grow: 1;
+            display: grid;
+            grid-template-columns: 1fr;
+            grid-template-rows: 1fr auto;
+            gap: 20px;
+            justify-items: center;
+            align-items: center;
+            overflow: hidden;
         }
-        
+
         .video-wrapper {
             width: 100%;
-            max-width: 450px;
-            background: #1e1e1e;
-            padding: 15px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            height: 100%;
+            max-width: 1280px;
+            max-height: 720px;
+            background-color: #000;
+            border-radius: var(--border-radius);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #333;
+            aspect-ratio: 16/9;
         }
 
         video { 
-            width: 100%; 
-            aspect-ratio: 16/9; 
-            background: #000; 
-            border-radius: 8px; 
-            object-fit: cover; 
+            width: 100%; height: 100%; object-fit: cover; 
         }
 
-        .fs-btn {
-            margin-top: 10px;
-            background: #2ed573;
-            width: 100%;
+        /* Köşedeki kamera overlay'i (Kendi videon) */
+        #my-video-overlay {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 20%;
+            min-width: 120px;
+            max-width: 240px;
+            aspect-ratio: 16/9;
+            border-radius: 8px;
+            border: 2px solid rgba(255,255,255,0.3);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            z-index: 5;
+            object-fit: cover;
+            background: #000;
         }
-        .fs-btn:hover { background: #7bed9f; }
+        
+        /* Tam ekran butonu */
+        .fs-btn-overlay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.5);
+            color: #fff;
+            border: none;
+            padding: 8px;
+            border-radius: 50%;
+            cursor: pointer;
+            opacity: 0;
+            transition: var(--transition);
+            z-index: 6;
+        }
+        .video-wrapper:hover .fs-btn-overlay { opacity: 1; }
 
-        /* Sohbet (Chat) Alanı */
-        .chat-container {
-            width: 100%;
-            max-width: 920px;
-            margin: 20px auto 0 auto;
-            background: #1e1e1e;
-            border-radius: 12px;
+        /* --- Kontrol Paneli (Toolbar) --- */
+        .toolbar {
+            grid-row: 2;
+            width: auto;
+            background-color: var(--panel-bg);
+            padding: 10px 20px;
+            border-radius: 50px;
+            display: flex;
+            gap: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+            border: 1px solid #333;
+        }
+
+        .toolbar-btn {
+            background: none;
+            border: none;
+            color: #ccc;
+            font-size: 1.2rem;
+            padding: 12px;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .toolbar-btn:hover { background-color: rgba(255,255,255,0.1); color: #fff; }
+        .toolbar-btn.active { background-color: var(--accent-color); color: #fff; }
+        .toolbar-btn.disabled { color: #555; cursor: not-allowed; }
+        
+        .toolbar-btn i.fa-microphone-slash, .toolbar-btn i.fa-video-slash { color: var(--accent-color); }
+
+        /* --- Sohbet & Bağlantı Paneli (Sağ Kenar) --- */
+        .sidebar {
+            width: 320px;
+            min-width: 320px;
+            background-color: var(--panel-bg);
+            border-radius: var(--border-radius);
+            border: 1px solid #333;
             display: flex;
             flex-direction: column;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            transition: var(--transition);
+        }
+
+        /* Bağlantı kurma formu */
+        .connection-box {
+            padding: 20px;
+            border-bottom: 1px solid #333;
+        }
+        .input-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        input[type="text"] {
+            flex-grow: 1;
+            padding: 12px;
+            background-color: #2a2a2a;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        input[type="text"]:focus { border-color: var(--primary-btn); }
+        
+        .action-btn {
+            padding: 12px 18px;
+            background-color: var(--primary-btn);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: var(--transition);
+        }
+        .action-btn:hover { background-color: var(--primary-hover); }
+
+        /* Chat alanı */
+        .chat-panel {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .chat-header {
-            background: #2a2a2a;
-            padding: 10px;
-            font-weight: bold;
-            font-size: 1.1rem;
-            border-bottom: 1px solid #444;
+            padding: 15px 20px;
+            background-color: rgba(255,255,255,0.03);
+            border-bottom: 1px solid #333;
+            font-weight: 600;
+            display: flex;
+            justify-content: space-between;
         }
 
         .chat-messages {
-            height: 200px;
+            flex-grow: 1;
+            padding: 20px;
             overflow-y: auto;
-            padding: 15px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            text-align: left;
+            gap: 12px;
         }
 
         .message {
-            max-width: 80%;
+            max-width: 85%;
             padding: 10px 14px;
-            border-radius: 15px;
-            font-size: 14px;
+            border-radius: 10px;
+            font-size: 0.9rem;
             line-height: 1.4;
+            word-wrap: break-word;
         }
-
-        .message.sent {
-            align-self: flex-end;
-            background: #007bff;
-            color: white;
-            border-bottom-right-radius: 2px;
-        }
-
-        .message.received {
-            align-self: flex-start;
-            background: #333;
-            color: white;
-            border-bottom-left-radius: 2px;
-        }
+        .message.sent { align-self: flex-end; background-color: var(--primary-btn); color: white; border-bottom-right-radius: 2px; }
+        .message.received { align-self: flex-start; background-color: #333; color: #fff; border-bottom-left-radius: 2px; }
+        .message-meta { font-size: 0.75rem; color: #aaa; margin-bottom: 2px; display: block; }
 
         .chat-input-area {
+            padding: 15px;
+            background-color: rgba(0,0,0,0.2);
+            border-top: 1px solid #333;
             display: flex;
-            padding: 10px;
-            background: #2a2a2a;
             gap: 10px;
         }
 
-        .chat-input-area input {
-            flex-grow: 1;
-            margin: 0;
-        }
-        
-        .chat-input-area button {
-            flex-grow: 0;
-            width: auto;
-            background: #2ed573;
-        }
-        .chat-input-area button:hover { background: #26b360; }
-        
-        /* Görüntü Birleştirme için Tuval (Gizli) */
-        canvas#mixing-canvas {
-            display: none;
+        /* --- Scrollbar Tasarımı --- */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* --- Tuval (Canvas) --- */
+        canvas#mixing-canvas { display: none; }
+
+        /* --- Mobil Uyumluluk --- */
+        @media (max-width: 768px) {
+            main { flex-direction: column; padding: 10px; }
+            .sidebar { width: 100%; min-width: 100%; height: 250px; }
+            .video-grid { grid-template-rows: 1fr; }
+            .toolbar { position: fixed; bottom: 270px; left: 50%; transform: translateX(-50%); z-index: 11; }
+            #my-video-overlay { width: 30%; bottom: 10px; right: 10px; }
+            .connection-box { display: none; } /* Mobilde bağlantı formunu gizle, toolbar'a taşıyabilirsin */
         }
     </style>
 </head>
 <body>
 
-    <h2>🍿 Özel Sinema Odası</h2>
-    <div class="controls">
-        <p style="margin-top: 0;">Senin ID'n:<br> <span id="my-id">Bağlanıyor...</span></p>
-        <input type="text" id="partner-id" placeholder="Karşı tarafın ID'sini gir">
-        <div class="buttons-row">
-            <button onclick="makeCall()">Bağlan (Ara)</button>
-            <button class="action-btn" id="share-btn" onclick="shareScreen()">Ekran & Ses Paylaş</button>
+    <header>
+        <h1>Togetherly <span>🍿</span></h1>
+        <div class="status-group">
+            <span id="connection-status-dot"></span>
+            <span id="status-text">Bağlanıyor...</span>
+            <span id="my-id-display">ID Alınıyor...</span>
         </div>
-    </div>
+    </header>
 
-    <div class="video-container">
-        <div class="video-wrapper">
-            <h3 style="margin-top: 0;">Sen</h3>
-            <!-- Senin videon (Ekranda görünür) -->
-            <video id="my-video" autoplay muted playsinline></video>
-            
-            <!-- Görüntü birleştirme için kullanılacak gizli video etiketleri -->
-            <video id="temp-camera-video" autoplay muted playsinline style="display:none;"></video>
-            <video id="temp-screen-video" autoplay muted playsinline style="display:none;"></video>
-            
-            <!-- Birleştirme tuvali (Gizli kalacak) -->
-            <canvas id="mixing-canvas" width="1280" height="720"></canvas>
-        </div>
-        <div class="video-wrapper">
-            <h3 style="margin-top: 0;">Kız Arkadaşın</h3>
-            <video id="remote-video" autoplay playsinline></video>
-            <button class="fs-btn" onclick="openFullscreen()">🎬 Tam Ekranda İzle</button>
-        </div>
-    </div>
+    <main>
+        <!-- Video Alanı -->
+        <div class="video-grid">
+            <div class="video-wrapper">
+                <!-- Kız Arkadaşın (Remote) Videon -->
+                <video id="remote-video" autoplay playsinline placeholder="Arkadaşının görüntüsü burada belirecek..."></video>
+                <button class="fs-btn-overlay" onclick="toggleFullscreen('remote-video')" title="Tam Ekran">
+                    <i class="fas fa-expand"></i>
+                </button>
+                
+                <!-- Kendi Kamera Overlay'in (Sadece ekran paylaşırken köşede çıkar) -->
+                <video id="my-video-overlay" autoplay muted playsinline></video>
+            </div>
 
-    <!-- Sohbet (Chat) Arayüzü -->
-    <div class="chat-container">
-        <div class="chat-header">💬 Mesajlar</div>
-        <div class="chat-messages" id="chat-messages">
-            <div style="text-align: center; color: #777; font-size: 0.9em;">Bağlantı kurulduğunda buradan mesajlaşabilirsiniz.</div>
+            <!-- Kontrol Toolbar'ı -->
+            <div class="toolbar">
+                <button class="toolbar-btn" id="mic-btn" onclick="toggleMic()" title="Mikrofonu Aç/Kapat">
+                    <i class="fas fa-microphone"></i>
+                </button>
+                <button class="toolbar-btn" id="cam-btn" onclick="toggleCam()" title="Kamerayı Aç/Kapat">
+                    <i class="fas fa-video"></i>
+                </button>
+                <button class="toolbar-btn action-btn" id="share-btn" onclick="toggleScreenShare()" title="Ekran & Ses Paylaş">
+                    <i class="fas fa-desktop"></i>
+                </button>
+                <button class="toolbar-btn" id="remote-vol-btn" onclick="toggleRemoteVolume()" title="Karşının Sesini Kapat">
+                    <i class="fas fa-volume-up"></i>
+                </button>
+            </div>
         </div>
-        <div class="chat-input-area">
-            <input type="text" id="chat-input" placeholder="Mesajını yaz..." onkeypress="handleKeyPress(event)">
-            <button onclick="sendMessage()">Gönder</button>
-        </div>
-    </div>
+
+        <!-- Sağ Kenar Çubuğu (Bağlantı ve Chat) -->
+        <aside class="sidebar" id="sidebar">
+            <!-- Bağlantı Formu -->
+            <div class="connection-box">
+                <label style="font-weight:600; font-size:0.9rem;">Arkadaşına Bağlan</label>
+                <div class="input-group">
+                    <input type="text" id="partner-id" placeholder="Onun ID'sini yapıştır...">
+                    <button class="action-btn" onclick="makeCall()">Bağlan</button>
+                </div>
+            </div>
+
+            <!-- Chat Paneli -->
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <span>💬 Sohbet</span>
+                </div>
+                <div class="chat-messages" id="chat-messages">
+                    <div style="text-align: center; color: #777; font-size: 0.85rem; margin-top: 20px;">
+                        Henüz mesaj yok.<br>Bağlandıktan sonra yazışabilirsiniz.
+                    </div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Mesajını yaz..." onkeypress="handleKeyPress(event)">
+                    <button class="action-btn" onclick="sendMessage()">Gönder</button>
+                </div>
+            </div>
+        </aside>
+    </main>
+
+    <!-- Görüntü Birleştirme için Tuval (Canvas - Gizli) -->
+    <canvas id="mixing-canvas" width="1280" height="720"></canvas>
+    <!-- Gizli video kaynakları -->
+    <video id="temp-camera-video" autoplay muted playsinline style="display:none;"></video>
+    <video id="temp-screen-video" autoplay muted playsinline style="display:none;"></video>
 
     <script>
+        // --- Değişkenler ve Ayarlar ---
         const peer = new Peer();
-        let localCameraStream; // Kamerayı burada saklayacağız
+        let localCameraStream;
         let currentCall;
         let dataConnection;
+        
+        let isMicOn = true;
+        let isCamOn = true;
+        let isRemoteAudioOn = true;
         let isSharingScreen = false;
-        let animationFrameId; // Tuval çizimini durdurmak için
+        
+        let animationFrameId; // Canvas çizimi için
 
-        // Kendi ID'ni ekrana yazdır
+        // --- DOM Elemanları ---
+        const statusDot = document.getElementById('connection-status-dot');
+        const statusText = document.getElementById('status-text');
+        const myIdDisplay = document.getElementById('my-id-display');
+        const remoteVideo = document.getElementById('remote-video');
+        const myVideoOverlay = document.getElementById('my-video-overlay');
+        const micBtn = document.getElementById('mic-btn');
+        const camBtn = document.getElementById('cam-btn');
+        const shareBtn = document.getElementById('share-btn');
+        const remoteVolBtn = document.getElementById('remote-vol-btn');
+        const chatMessages = document.getElementById('chat-messages');
+
+        // --- 1. Başlangıç: ID Al ve Kamerayı Başlat ---
         peer.on('open', (id) => {
-            document.getElementById('my-id').innerText = id;
+            myIdDisplay.innerText = id;
+            statusDot.classList.add('connected');
+            statusText.innerText = "Hazır (Bağlantı Bekleniyor)";
+            appendSystemMessage("Kendi ID'n alındı. Kız arkadaşına gönder.");
         });
 
-        // 1. Kamerayı ve Mikrofonu Başlat
+        peer.on('error', (err) => {
+            console.error("PeerJS Hatası:", err);
+            statusText.innerText = "Hata!";
+            statusDot.style.backgroundColor = 'red';
+            appendSystemMessage("Bir bağlantı hatası oluştu.");
+        });
+
+        // Kamerayı ve Mikrofonu Başlat
         navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true })
             .then((stream) => {
                 localCameraStream = stream;
                 // Kendi pencerene kamerayı yansıt
-                document.getElementById('my-video').srcObject = stream;
+                myVideoOverlay.srcObject = stream;
                 // Birleştirme için gizli video etiketine kamerayı yansıt
                 document.getElementById('temp-camera-video').srcObject = stream;
             })
-            .catch(err => console.error("Kamera/Mikrofon izni alınamadı!", err));
+            .catch(err => {
+                console.error("Kamera/Mikrofon izni alınamadı!", err);
+                appendSystemMessage("Hata: Kamera veya mikrofon izni verilmedi.");
+            });
 
-        // 2. Karşıdan Gelen Aramayı Cevapla
+        // --- 2. Bağlantıyı Yakala (Aranan Taraf) ---
         peer.on('call', (call) => {
             currentCall = call;
-            // Kendi kamera akışını gönder (Daha ekran paylaşılmadı)
-            call.answer(localCameraStream); 
-            
-            call.on('stream', (remoteStream) => {
-                document.getElementById('remote-video').srcObject = remoteStream;
-                playRemoteVideo();
-            });
+            call.answer(localCameraStream); // Kendi akışını gönder
+            setupCallListeners(call);
+            updateStatus("Eşleşildi!");
         });
 
         peer.on('connection', (conn) => {
             dataConnection = conn;
-            setupChatListener();
+            setupChatListener(conn);
         });
 
-        // 3. Arama Yapma Fonksiyonu
+        // --- 3. Bağlantı Kur (Arayan Taraf) ---
         function makeCall() {
-            const partnerId = document.getElementById('partner-id').value;
-            if (!partnerId) return alert("Lütfen bir ID girin!");
+            const partnerId = document.getElementById('partner-id').value.trim();
+            if (!partnerId) return alert("Lütfen kız arkadaşının ID'sini girin!");
 
+            updateStatus("Bağlanılıyor...");
+
+            // Görüntüyü bağla
             const call = peer.call(partnerId, localCameraStream);
             currentCall = call;
+            setupCallListeners(call);
 
+            // Chat'i bağla
+            const conn = peer.connect(partnerId);
+            dataConnection = conn;
+            setupChatListener(conn);
+        }
+
+        // Arama olaylarını dinle
+        function setupCallListeners(call) {
             call.on('stream', (remoteStream) => {
-                document.getElementById('remote-video').srcObject = remoteStream;
+                remoteVideo.srcObject = remoteStream;
                 playRemoteVideo();
             });
-
-            dataConnection = peer.connect(partnerId);
-            setupChatListener();
+            call.on('close', () => {
+                appendSystemMessage("Arama sona erdi.");
+                updateStatus("Bağlantı Kesildi.");
+                remoteVideo.srcObject = null;
+            });
         }
 
         // Mobil otomatik oynatma çözümü
         function playRemoteVideo() {
             setTimeout(() => {
-                document.getElementById('remote-video').play().catch(err => {
-                    console.log("Oynatma hatası:", err);
-                });
+                remoteVideo.play().catch(err => console.log("Otomatik oynatma engellendi:", err));
             }, 500);
         }
 
-        // 4. Sohbet (Chat) Fonksiyonları
-        function setupChatListener() {
-            dataConnection.on('open', () => {
-                document.getElementById('chat-messages').innerHTML = '<div style="text-align: center; color: #2ed573; font-size: 0.9em;">Bağlantı başarılı! Mesajlaşabilirsiniz.</div>';
-            });
-            dataConnection.on('data', (data) => {
-                appendMessage(data, 'received');
-            });
+        // --- 4. Toolbar Kontrolleri ---
+        
+        function toggleMic() {
+            isMicOn = !isMicOn;
+            localCameraStream.getAudioTracks()[0].enabled = isMicOn;
+            updateBtnState(micBtn, isMicOn, 'fa-microphone', 'fa-microphone-slash');
         }
 
-        function sendMessage() {
-            const input = document.getElementById('chat-input');
-            const message = input.value.trim();
-            if (!message) return;
-            if (!dataConnection || !dataConnection.open) { alert("Önce bağlanmalısınız!"); return; }
-            dataConnection.send(message);
-            appendMessage(message, 'sent');
-            input.value = '';
+        function toggleCam() {
+            isCamOn = !isCamOn;
+            localCameraStream.getVideoTracks()[0].enabled = isCamOn;
+            updateBtnState(camBtn, isCamOn, 'fa-video', 'fa-video-slash');
+            // Overlay'i de gizle/göster
+            myVideoOverlay.style.display = isCamOn ? 'block' : 'none';
         }
 
-        function appendMessage(text, type) {
-            const chatBox = document.getElementById('chat-messages');
-            const msgElement = document.createElement('div');
-            msgElement.classList.add('message', type);
-            msgElement.innerText = text;
-            chatBox.appendChild(msgElement);
-            chatBox.scrollTop = chatBox.scrollHeight;
+        function toggleRemoteVolume() {
+            isRemoteAudioOn = !isRemoteAudioOn;
+            remoteVideo.muted = !isRemoteAudioOn;
+            updateBtnState(remoteVolBtn, isRemoteAudioOn, 'fa-volume-up', 'fa-volume-mute');
         }
 
-        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
+        function updateBtnState(btn, isOn, onIcon, offIcon) {
+            const icon = btn.querySelector('i');
+            if (isOn) {
+                btn.classList.remove('active');
+                icon.className = `fas ${onIcon}`;
+            } else {
+                btn.classList.add('active');
+                icon.className = `fas ${offIcon}`;
+            }
+        }
 
-        // 5. Gelişmiş Görüntü Birleştirme (Hem Ekran Hem Ben)
-        function shareScreen() {
-            if (isSharingScreen) return; // Zaten paylaşılıyorsa tekrar başlatma
+        // --- 5. Gelişmiş Ekran ve SES Paylaşımı (Tuval Birleştirme) ---
+        function toggleScreenShare() {
+            if (isSharingScreen) {
+                stopScreenSharing();
+            } else {
+                startScreenSharing();
+            }
+        }
+
+        function startScreenSharing() {
+            if (!currentCall) return alert("Önce bağlanmalısınız!");
 
             navigator.mediaDevices.getDisplayMedia({ video: { width: 1280, height: 720 }, audio: true })
                 .then((screenStream) => {
                     isSharingScreen = true;
-                    document.getElementById('share-btn').innerText = "Paylaşımı Durdur";
+                    shareBtn.classList.add('active');
+                    shareBtn.innerHTML = '<i class="fas fa-stop-circle"></i> Paylaşımı Durdur';
                     
                     // Ekran görüntüsünü gizli video etiketine yansıt
                     const tempScreenVideo = document.getElementById('temp-screen-video');
                     tempScreenVideo.srcObject = screenStream;
                     
-                    // Tuval (Canvas) ve Çizim Ayarları
+                    // Tuval ve Çizim Ayarları
                     const canvas = document.getElementById('mixing-canvas');
                     const ctx = canvas.getContext('2d');
                     const tempCameraVideo = document.getElementById('temp-camera-video');
 
                     // Görüntüleri Tuval üzerinde birleştirme döngüsü
                     function drawOverlay() {
-                        if (!isSharingScreen) return; // Paylaşım bittiyse çizimi durdur
+                        if (!isSharingScreen) return;
 
-                        // 1. Arka plana Ekran görüntüsünü çiz (Diziyi/Filmi)
+                        // 1. Arka plana Ekran görüntüsünü çiz (Diziyi)
                         ctx.drawImage(tempScreenVideo, 0, 0, canvas.width, canvas.height);
                         
-                        // 2. Sağ alt köşeye kameranı (Kendi yüzünü) çiz
-                        const camWidth = canvas.width * 0.2; // Ekranın %20'si kadar genişlik
-                        const camHeight = canvas.height * 0.2;
-                        const x = canvas.width - camWidth - 20; // 20px kenar boşluğu
-                        const y = canvas.height - camHeight - 20;
-                        
-                        // Kameranın etrafına küçük bir kenarlık çiz (Netlik için)
-                        ctx.lineWidth = 4;
-                        ctx.strokeStyle = "#444";
-                        ctx.strokeRect(x, y, camWidth, camHeight);
-                        // Kamera görüntüsünü yapıştır
-                        ctx.drawImage(tempCameraVideo, x, y, camWidth, camHeight);
+                        // 2. Sağ alt köşeye kameranı (Kendi yüzünü) çiz (Eğer kamera açıksa)
+                        if (isCamOn) {
+                            const camWidth = canvas.width * 0.18; // Biraz daha küçük PiP
+                            const camHeight = canvas.height * 0.18;
+                            const x = canvas.width - camWidth - 25; // Kenar boşluğu
+                            const y = canvas.height - camHeight - 25;
+                            
+                            // Kamera arkasına hafif bir gölge ve kenarlık
+                            ctx.shadowColor = "rgba(0,0,0,0.5)";
+                            ctx.shadowBlur = 15;
+                            ctx.lineWidth = 5;
+                            ctx.strokeStyle = "#2a2a2a";
+                            
+                            // Yuvarlatılmış köşeli kenarlık çizmek biraz karmaşık, düz dikdörtgen yapalım
+                            ctx.strokeRect(x, y, camWidth, camHeight);
+                            ctx.drawImage(tempCameraVideo, x, y, camWidth, camHeight);
+                            
+                            // Gölgeyi sıfırla
+                            ctx.shadowBlur = 0;
+                        }
 
-                        // Bir sonraki ekran yenilemesinde tekrar çiz
                         animationFrameId = requestAnimationFrame(drawOverlay);
                     }
 
-                    // Birleştirmeyi başlat
                     drawOverlay();
 
-                    // Tuvalden bir akış (Stream) oluştur (Görüntü ve Ses)
-                    const mixedStream = canvas.captureStream(30); // 30 FPS
+                    // Tuvalden sesli ve görüntülü bir akış oluştur
+                    const mixedStream = canvas.captureStream(30);
 
-                    // Tuval akışına Ekran Sesini (Eğer kullanıcı izin verdiyse) ekle
+                    // Sistem Sesini ekle (Eğer seçildiyse)
                     if (screenStream.getAudioTracks().length > 0) {
                         mixedStream.addTrack(screenStream.getAudioTracks()[0]);
                     }
 
-                    // Senin pencerene bu birleşmiş görüntüyü yansıt (Sen de gör)
-                    document.getElementById('my-video').srcObject = mixedStream;
+                    // Senin pencerende de birleşmiş görüntü görünsün
+                    // (Bu adımı atlayabilirsin, sen sadece filmi görmek isteyebilirsin.
+                    //  Senin pencerende sadece kameran kalsın istiyorsan bu satırı yorum yap.)
+                    // remoteVideo.srcObject = mixedStream; // Kendi ekranımda da PiP gör
                     
-                    // Eğer aktif bir arama varsa, giden görüntüyü bu birleşmiş görüntüyle değiştir
-                    if (currentCall) {
-                        const videoTrack = mixedStream.getVideoTracks()[0];
-                        const videoSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                        if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+                    // Karşıya bu birleşmiş görüntüyü gönder
+                    replaceStreamInCall(mixedStream);
 
-                        const audioTrack = mixedStream.getAudioTracks()[0];
-                        const audioSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio');
-                        if (audioSender && audioTrack) audioSender.replaceTrack(audioTrack);
-                    }
-
-                    // Ekran paylaşımı durdurulduğunda (Paylaşımı durdur butonuna basıldığında)
+                    // Ekran paylaşımı tarayıcıdan durdurulursa
                     screenStream.getVideoTracks()[0].onended = stopScreenSharing;
                 })
                 .catch(err => {
@@ -400,36 +574,102 @@
                 });
         }
 
-        // Ekran Paylaşımını Durdurma Fonksiyonu
         function stopScreenSharing() {
+            if (!isSharingScreen) return;
             isSharingScreen = false;
-            document.getElementById('share-btn').innerText = "Ekran & Ses Paylaş";
-            cancelAnimationFrame(animationFrameId); // Tuval çizimini durdur
+            
+            shareBtn.classList.remove('active');
+            shareBtn.innerHTML = '<i class="fas fa-desktop"></i> Ekran & Ses Paylaş';
+            cancelAnimationFrame(animationFrameId);
 
+            // Gizli ekran akışını kapat
             const tempScreenVideo = document.getElementById('temp-screen-video');
             if (tempScreenVideo.srcObject) {
-                tempScreenVideo.srcObject.getTracks().forEach(track => track.stop()); // Ekran akışını tamamen kapat
+                tempScreenVideo.srcObject.getTracks().forEach(track => track.stop());
                 tempScreenVideo.srcObject = null;
             }
 
-            // Kameraya geri dön (Senin pencerende)
-            document.getElementById('my-video').srcObject = localCameraStream;
-            
-            // Eğer aktif bir arama varsa, giden görüntüyü tekrar kameraya çevir
+            // Karşıya tekrar sadece kameranı gönder
             if (currentCall) {
-                const cameraTrack = localCameraStream.getVideoTracks()[0];
-                const videoSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                if (videoSender && cameraTrack) videoSender.replaceTrack(cameraTrack);
-
-                const micTrack = localCameraStream.getAudioTracks()[0];
-                const audioSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio');
-                if (audioSender && micTrack) audioSender.replaceTrack(micTrack);
+                replaceStreamInCall(localCameraStream);
             }
         }
 
-        // 6. Filmi Tam Ekran İzleme
-        function openFullscreen() {
-            const elem = document.getElementById("remote-video");
+        // Aktif aramadaki akışı değiştirme (Helper)
+        function replaceStreamInCall(newStream) {
+            const videoTrack = newStream.getVideoTracks()[0];
+            const videoSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+            if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
+
+            const audioTrack = newStream.getAudioTracks()[0];
+            const audioSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio');
+            if (audioSender && audioTrack) audioSender.replaceTrack(audioTrack);
+        }
+
+        // --- 6. Sohbet (Chat) Fonksiyonları ---
+        function setupChatListener(conn) {
+            conn.on('open', () => {
+                appendSystemMessage("Kız arkadaşınla sohbet bağlantısı kuruldu.");
+                updateStatus("Eşleşildi (Chat Aktif)");
+            });
+            conn.on('data', (data) => {
+                appendMessage(data, 'received');
+            });
+            conn.on('close', () => {
+                appendSystemMessage("Sohbet bağlantısı koptu.");
+            });
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+            if (!dataConnection || !dataConnection.open) return appendSystemMessage("Önce bağlanmalısınız.");
+
+            dataConnection.send(message);
+            appendMessage(message, 'sent');
+            input.value = '';
+        }
+
+        function appendMessage(text, type) {
+            // "Henüz mesaj yok" yazısını kaldır
+            const noMsg = chatMessages.querySelector('div[style*="text-align: center"]');
+            if (noMsg) noMsg.remove();
+
+            const msgElement = document.createElement('div');
+            msgElement.classList.add('message', type);
+            
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            const metaElement = document.createElement('span');
+            metaElement.classList.add('message-meta');
+            metaElement.innerText = type === 'sent' ? `Sen, ${time}` : `O, ${time}`;
+            
+            msgElement.appendChild(metaElement);
+            
+            const textNode = document.createTextNode(text);
+            msgElement.appendChild(textNode);
+            
+            chatMessages.appendChild(msgElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function appendSystemMessage(text) {
+            const msgElement = document.createElement('div');
+            msgElement.style.cssText = "text-align: center; color: #777; font-size: 0.8rem; margin: 5px 0;";
+            msgElement.innerText = `— ${text} —`;
+            chatMessages.appendChild(msgElement);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
+
+        // --- 7. Yardımcı Fonksiyonlar ---
+        function updateStatus(text) { statusText.innerText = text; }
+
+        function toggleFullscreen(videoId) {
+            const elem = document.getElementById(videoId);
+            if (!elem.srcObject) return; // Video yoksa tam ekran yapma
+
             if (elem.requestFullscreen) elem.requestFullscreen();
             else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
             else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
