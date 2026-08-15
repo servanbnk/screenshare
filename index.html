@@ -66,6 +66,12 @@
             call.on('stream', (remoteStream) => {
                 // Karşının görüntüsünü ekrana yansıt
                 document.getElementById('remote-video').srcObject = remoteStream;
+                setTimeout(() => {
+    document.getElementById('remote-video').play().catch(err => {
+        console.log("Kullanıcının ekrana dokunması gerekiyor:", err);
+        alert("Sesi duymak için lütfen ekrana bir kez dokunun!");
+    });
+}, 500);
             });
         });
 
