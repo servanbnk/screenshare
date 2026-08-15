@@ -107,7 +107,7 @@
         /* Sohbet (Chat) Alanı */
         .chat-container {
             width: 100%;
-            max-width: 920px; /* İki videonun toplam genişliği kadar */
+            max-width: 920px;
             margin: 20px auto 0 auto;
             background: #1e1e1e;
             border-radius: 12px;
@@ -175,12 +175,11 @@
             background: #2ed573;
         }
         .chat-input-area button:hover { background: #26b360; }
-
-        /* Scrollbar tasarımı */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e1e1e; }
-        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #555; }
+        
+        /* Görüntü Birleştirme için Tuval (Gizli) */
+        canvas#mixing-canvas {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -191,17 +190,25 @@
         <input type="text" id="partner-id" placeholder="Karşı tarafın ID'sini gir">
         <div class="buttons-row">
             <button onclick="makeCall()">Bağlan (Ara)</button>
-            <button class="action-btn" onclick="shareScreen()">Ekran & Ses Paylaş</button>
+            <button class="action-btn" id="share-btn" onclick="shareScreen()">Ekran & Ses Paylaş</button>
         </div>
     </div>
 
     <div class="video-container">
         <div class="video-wrapper">
             <h3 style="margin-top: 0;">Sen</h3>
+            <!-- Senin videon (Ekranda görünür) -->
             <video id="my-video" autoplay muted playsinline></video>
+            
+            <!-- Görüntü birleştirme için kullanılacak gizli video etiketleri -->
+            <video id="temp-camera-video" autoplay muted playsinline style="display:none;"></video>
+            <video id="temp-screen-video" autoplay muted playsinline style="display:none;"></video>
+            
+            <!-- Birleştirme tuvali (Gizli kalacak) -->
+            <canvas id="mixing-canvas" width="1280" height="720"></canvas>
         </div>
         <div class="video-wrapper">
-            <h3 style="margin-top: 0;">Arkadaşın</h3>
+            <h3 style="margin-top: 0;">Kız Arkadaşın</h3>
             <video id="remote-video" autoplay playsinline></video>
             <button class="fs-btn" onclick="openFullscreen()">🎬 Tam Ekranda İzle</button>
         </div>
@@ -221,9 +228,11 @@
 
     <script>
         const peer = new Peer();
-        let localStream;
+        let localCameraStream; // Kamerayı burada saklayacağız
         let currentCall;
-        let dataConnection; // Chat için veri bağlantısı
+        let dataConnection;
+        let isSharingScreen = false;
+        let animationFrameId; // Tuval çizimini durdurmak için
 
         // Kendi ID'ni ekrana yazdır
         peer.on('open', (id) => {
@@ -231,17 +240,21 @@
         });
 
         // 1. Kamerayı ve Mikrofonu Başlat
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        navigator.mediaDevices.getUserMedia({ video: { width: 1280, height: 720 }, audio: true })
             .then((stream) => {
-                localStream = stream;
+                localCameraStream = stream;
+                // Kendi pencerene kamerayı yansıt
                 document.getElementById('my-video').srcObject = stream;
+                // Birleştirme için gizli video etiketine kamerayı yansıt
+                document.getElementById('temp-camera-video').srcObject = stream;
             })
             .catch(err => console.error("Kamera/Mikrofon izni alınamadı!", err));
 
-        // 2. Karşıdan Gelen Aramayı ve Chat Bağlantısını Cevapla (Aranan Kişi)
+        // 2. Karşıdan Gelen Aramayı Cevapla
         peer.on('call', (call) => {
             currentCall = call;
-            call.answer(localStream); 
+            // Kendi kamera akışını gönder (Daha ekran paylaşılmadı)
+            call.answer(localCameraStream); 
             
             call.on('stream', (remoteStream) => {
                 document.getElementById('remote-video').srcObject = remoteStream;
@@ -249,19 +262,17 @@
             });
         });
 
-        // Karşıdan gelen Chat bağlantısını dinle
         peer.on('connection', (conn) => {
             dataConnection = conn;
             setupChatListener();
         });
 
-        // 3. Arama Yapma ve Chat Bağlantısı Kurma (Arayan Kişi)
+        // 3. Arama Yapma Fonksiyonu
         function makeCall() {
             const partnerId = document.getElementById('partner-id').value;
             if (!partnerId) return alert("Lütfen bir ID girin!");
 
-            // Videoyu bağla
-            const call = peer.call(partnerId, localStream);
+            const call = peer.call(partnerId, localCameraStream);
             currentCall = call;
 
             call.on('stream', (remoteStream) => {
@@ -269,7 +280,6 @@
                 playRemoteVideo();
             });
 
-            // Chat'i bağla
             dataConnection = peer.connect(partnerId);
             setupChatListener();
         }
@@ -288,8 +298,6 @@
             dataConnection.on('open', () => {
                 document.getElementById('chat-messages').innerHTML = '<div style="text-align: center; color: #2ed573; font-size: 0.9em;">Bağlantı başarılı! Mesajlaşabilirsiniz.</div>';
             });
-
-            // Mesaj geldiğinde ekrana yazdır
             dataConnection.on('data', (data) => {
                 appendMessage(data, 'received');
             });
@@ -298,17 +306,11 @@
         function sendMessage() {
             const input = document.getElementById('chat-input');
             const message = input.value.trim();
-            
             if (!message) return;
-            if (!dataConnection || !dataConnection.open) {
-                alert("Önce karşı tarafla bağlanmalısınız!");
-                return;
-            }
-
-            // Mesajı gönder ve kendi ekranına yaz
+            if (!dataConnection || !dataConnection.open) { alert("Önce bağlanmalısınız!"); return; }
             dataConnection.send(message);
             appendMessage(message, 'sent');
-            input.value = ''; // Kutuyu temizle
+            input.value = '';
         }
 
         function appendMessage(text, type) {
@@ -316,64 +318,121 @@
             const msgElement = document.createElement('div');
             msgElement.classList.add('message', type);
             msgElement.innerText = text;
-            
             chatBox.appendChild(msgElement);
-            // Scroll'u her zaman en alta kaydır
             chatBox.scrollTop = chatBox.scrollHeight;
         }
 
-        // Enter tuşuna basınca mesaj gönderme
-        function handleKeyPress(event) {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
-        }
+        function handleKeyPress(event) { if (event.key === 'Enter') sendMessage(); }
 
-        // 5. Ekran ve SES Paylaşımı
+        // 5. Gelişmiş Görüntü Birleştirme (Hem Ekran Hem Ben)
         function shareScreen() {
-            navigator.mediaDevices.getDisplayMedia({ video: true, audio: true })
+            if (isSharingScreen) return; // Zaten paylaşılıyorsa tekrar başlatma
+
+            navigator.mediaDevices.getDisplayMedia({ video: { width: 1280, height: 720 }, audio: true })
                 .then((screenStream) => {
-                    document.getElementById('my-video').srcObject = screenStream;
+                    isSharingScreen = true;
+                    document.getElementById('share-btn').innerText = "Paylaşımı Durdur";
                     
+                    // Ekran görüntüsünü gizli video etiketine yansıt
+                    const tempScreenVideo = document.getElementById('temp-screen-video');
+                    tempScreenVideo.srcObject = screenStream;
+                    
+                    // Tuval (Canvas) ve Çizim Ayarları
+                    const canvas = document.getElementById('mixing-canvas');
+                    const ctx = canvas.getContext('2d');
+                    const tempCameraVideo = document.getElementById('temp-camera-video');
+
+                    // Görüntüleri Tuval üzerinde birleştirme döngüsü
+                    function drawOverlay() {
+                        if (!isSharingScreen) return; // Paylaşım bittiyse çizimi durdur
+
+                        // 1. Arka plana Ekran görüntüsünü çiz (Diziyi/Filmi)
+                        ctx.drawImage(tempScreenVideo, 0, 0, canvas.width, canvas.height);
+                        
+                        // 2. Sağ alt köşeye kameranı (Kendi yüzünü) çiz
+                        const camWidth = canvas.width * 0.2; // Ekranın %20'si kadar genişlik
+                        const camHeight = canvas.height * 0.2;
+                        const x = canvas.width - camWidth - 20; // 20px kenar boşluğu
+                        const y = canvas.height - camHeight - 20;
+                        
+                        // Kameranın etrafına küçük bir kenarlık çiz (Netlik için)
+                        ctx.lineWidth = 4;
+                        ctx.strokeStyle = "#444";
+                        ctx.strokeRect(x, y, camWidth, camHeight);
+                        // Kamera görüntüsünü yapıştır
+                        ctx.drawImage(tempCameraVideo, x, y, camWidth, camHeight);
+
+                        // Bir sonraki ekran yenilemesinde tekrar çiz
+                        animationFrameId = requestAnimationFrame(drawOverlay);
+                    }
+
+                    // Birleştirmeyi başlat
+                    drawOverlay();
+
+                    // Tuvalden bir akış (Stream) oluştur (Görüntü ve Ses)
+                    const mixedStream = canvas.captureStream(30); // 30 FPS
+
+                    // Tuval akışına Ekran Sesini (Eğer kullanıcı izin verdiyse) ekle
+                    if (screenStream.getAudioTracks().length > 0) {
+                        mixedStream.addTrack(screenStream.getAudioTracks()[0]);
+                    }
+
+                    // Senin pencerene bu birleşmiş görüntüyü yansıt (Sen de gör)
+                    document.getElementById('my-video').srcObject = mixedStream;
+                    
+                    // Eğer aktif bir arama varsa, giden görüntüyü bu birleşmiş görüntüyle değiştir
                     if (currentCall) {
-                        const videoTrack = screenStream.getVideoTracks()[0];
+                        const videoTrack = mixedStream.getVideoTracks()[0];
                         const videoSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
                         if (videoSender && videoTrack) videoSender.replaceTrack(videoTrack);
 
-                        const audioTrack = screenStream.getAudioTracks()[0];
+                        const audioTrack = mixedStream.getAudioTracks()[0];
                         const audioSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio');
-                        
-                        if (audioTrack && audioSender) {
-                            audioSender.replaceTrack(audioTrack);
-                        }
+                        if (audioSender && audioTrack) audioSender.replaceTrack(audioTrack);
                     }
 
-                    screenStream.getVideoTracks()[0].onended = () => {
-                        document.getElementById('my-video').srcObject = localStream;
-                        if (currentCall) {
-                            const cameraTrack = localStream.getVideoTracks()[0];
-                            const videoSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
-                            if (videoSender && cameraTrack) videoSender.replaceTrack(cameraTrack);
-
-                            const micTrack = localStream.getAudioTracks()[0];
-                            const audioSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio');
-                            if (audioSender && micTrack) audioSender.replaceTrack(micTrack);
-                        }
-                    };
+                    // Ekran paylaşımı durdurulduğunda (Paylaşımı durdur butonuna basıldığında)
+                    screenStream.getVideoTracks()[0].onended = stopScreenSharing;
                 })
-                .catch(err => console.error("Ekran paylaşılamadı!", err));
+                .catch(err => {
+                    console.error("Ekran paylaşılamadı!", err);
+                    stopScreenSharing();
+                });
+        }
+
+        // Ekran Paylaşımını Durdurma Fonksiyonu
+        function stopScreenSharing() {
+            isSharingScreen = false;
+            document.getElementById('share-btn').innerText = "Ekran & Ses Paylaş";
+            cancelAnimationFrame(animationFrameId); // Tuval çizimini durdur
+
+            const tempScreenVideo = document.getElementById('temp-screen-video');
+            if (tempScreenVideo.srcObject) {
+                tempScreenVideo.srcObject.getTracks().forEach(track => track.stop()); // Ekran akışını tamamen kapat
+                tempScreenVideo.srcObject = null;
+            }
+
+            // Kameraya geri dön (Senin pencerende)
+            document.getElementById('my-video').srcObject = localCameraStream;
+            
+            // Eğer aktif bir arama varsa, giden görüntüyü tekrar kameraya çevir
+            if (currentCall) {
+                const cameraTrack = localCameraStream.getVideoTracks()[0];
+                const videoSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'video');
+                if (videoSender && cameraTrack) videoSender.replaceTrack(cameraTrack);
+
+                const micTrack = localCameraStream.getAudioTracks()[0];
+                const audioSender = currentCall.peerConnection.getSenders().find(s => s.track.kind === 'audio');
+                if (audioSender && micTrack) audioSender.replaceTrack(micTrack);
+            }
         }
 
         // 6. Filmi Tam Ekran İzleme
         function openFullscreen() {
             const elem = document.getElementById("remote-video");
-            if (elem.requestFullscreen) {
-                elem.requestFullscreen();
-            } else if (elem.webkitRequestFullscreen) {
-                elem.webkitRequestFullscreen();
-            } else if (elem.msRequestFullscreen) {
-                elem.msRequestFullscreen();
-            }
+            if (elem.requestFullscreen) elem.requestFullscreen();
+            else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+            else if (elem.msRequestFullscreen) elem.msRequestFullscreen();
         }
     </script>
 </body>
